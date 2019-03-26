@@ -1,0 +1,1053 @@
+Redis数据库 
+
+	数据库类型：
+	
+		关系型数据库	
+			MySQL, Oracle, SQL Server, postgresql, db2 
+			以表的形式存储结构化数据
+			作用：
+				业务数据持久化存储 
+
+			
+		非关系型数据库   NoSQL   Not Only SQL 
+			以key-value键值对的方式存储非结构化数据
+			memcached, mongoDB, redis, HBase
+			作用： 
+				1) 缓存服务器 
+				2) 消息队列服务器， MQ， Messsage Queue   开发 
+				
+					ZeroMQ 
+					RabbitMQ 
+
+			
+
+
+Redis特性：		
+			
+	开源数据库
+	配置简单
+	支持内存存储数据
+	支持持久化存储数据
+		datafile 数据文件   *.rdb 
+		aof(append only file)文件，日志文件 
+	支持多实例部署
+	支持主从复制、分片集群、哨兵集群 
+	支持事务transaction
+	以key-value键值对的方式存储
+		value类型：string字符串、list列表、set集合、sorted_set有序集合、hash值
+		
+
+
+Redis数据库安装及启动 
+
+[root@redis01 ~]# yum install -y gcc
+[root@redis01 ~]# tar xf redis-3.2.9.tar.gz 
+[root@redis01 ~]# cd redis-3.2.9/
+[root@redis01 redis-3.2.9]# make
+[root@redis01 redis-3.2.9]# make PREFIX=/app/redis install
+[root@redis01 ~]# ls /app/redis/
+bin  
+
+命令解释：
+
+1、redis-server			启动redis服务
+2、redis-cli			redis客户端工具 
+3、redis-benchmark		redis性能测试
+4、redis-check-rdb		检测rdb文件
+5、redis-check-aof		检测aof日志文件  
+
+
+
+
+
+[root@redis01 ~]# mkdir /app/redis/conf
+[root@redis01 ~]# cd redis-3.2.9/
+[root@redis01 redis-3.2.9]# cp redis.conf /app/redis/conf/
+
+[root@redis01 ~]# /app/redis/bin/redis-server /app/redis/conf/redis.conf &
+[root@redis01 ~]# ss -antp | grep :6379
+LISTEN     0      128    127.0.0.1:6379                     *:*                   users:(("redis-server",pid=9612,fd=4))
+[root@redis01 ~]# 
+
+
+启动服务时内核参数说明：
+
+1、/proc/sys/net/core/somaxconn
+
+	定义了系统中每一个端口最大的监听队列的长度,默认为128. 对于大多数需要处理高并发连接的应用来说，该值太小，建议修改为1024或者更大
+	
+2、overcommit_memory
+
+	规定决定是否接受超大内存请求的条件。这个参数有三个可能的值：
+		0 — 默认设置。内核执行启发式内存过量使用处理，方法是估算可用内存量，并拒绝明显无效的请求。遗憾的是因为内存是使用启发式而非准确算法计算进行部署，这个设置有时可能会造成系统中的可用内存超载。
+		1 — 内核执行无内存过量使用处理。使用这个设置会增大内存超载的可能性，但也可以增强大量使用内存任务的性能。
+		2 — 内存拒绝等于或者大于总可用 swap 大小以及 overcommit_ratio 指定的物理 RAM 比例的内存请求。如果您希望减小内存过度使用的风险，这个设置就是最好的。
+
+3、/sys/kernel/mm/transparent_hugepage/enabled
+
+	禁止使用THP  
+	
+	
+
+[root@redis01 redis]# tail -n 1 /etc/profile
+export PATH=$PATH:/app/redis/bin
+[root@redis01 redis]# 
+[root@redis01 redis]# source /etc/profile
+		
+
+测试redis存储、读取数据：
+		
+[root@redis01 ~]# redis-cli 
+127.0.0.1:6379> 
+127.0.0.1:6379> set name martin
+OK
+127.0.0.1:6379> get name
+"martin"
+127.0.0.1:6379> 
+		
+		
+		
+Redis服务的启动与关闭
+
+1) 启动服务 
+
+[root@redis01 ~]# redis-server /app/redis/conf/redis.conf & 
+
+编辑rc.local文件，实现开机自启动
+
+2) 关闭服务
+
+[root@redis01 ~]# redis-cli shutdown
+
+		
+Redis常规操作：
+
+[root@redis01 ~]# redis-cli 
+
+127.0.0.1:6379> set age 16
+OK
+127.0.0.1:6379> get age
+"16"
+127.0.0.1:6379> set name martin
+OK
+127.0.0.1:6379> get name
+"martin"
+127.0.0.1:6379> 
+127.0.0.1:6379> keys *
+1) "age"
+2) "name"
+127.0.0.1:6379> del age
+(integer) 1
+127.0.0.1:6379> get age
+(nil)
+127.0.0.1:6379> 
+		
+		
+字符串string数据类型操作		
+
+127.0.0.1:6379> set name martin
+OK
+127.0.0.1:6379> get name
+"martin"
+127.0.0.1:6379> mset name tom age 15 sex male
+OK
+127.0.0.1:6379> mget name age sex
+1) "tom"
+2) "15"
+3) "male"
+127.0.0.1:6379> 
+
+127.0.0.1:6379> strlen name
+(integer) 3
+127.0.0.1:6379> 
+
+		
+127.0.0.1:6379> set count 1
+OK
+127.0.0.1:6379> incr count
+(integer) 2
+127.0.0.1:6379> incr count
+(integer) 3
+127.0.0.1:6379> incr count
+(integer) 4
+127.0.0.1:6379> get count
+"4"
+127.0.0.1:6379> decr count
+(integer) 3
+127.0.0.1:6379> get count
+"3"
+127.0.0.1:6379> 
+		
+		
+127.0.0.1:6379> set count 1
+OK
+127.0.0.1:6379> incrby count 3
+(integer) 4
+127.0.0.1:6379> get count
+"4"
+127.0.0.1:6379> decrby count 2
+(integer) 2
+127.0.0.1:6379> get count
+"2"
+127.0.0.1:6379> 
+
+
+
+redis事务
+
+	保证多个操作同时成功执行，在一个事务中，任何一个操作发生error，所有操作都会回滚 
+	
+	
+192.168.122.102:6379> set count 1
+OK
+192.168.122.102:6379> multi
+OK
+192.168.122.102:6379> incr count
+QUEUED
+192.168.122.102:6379> incr count
+QUEUED
+192.168.122.102:6379> exec
+1) (integer) 2
+2) (integer) 3
+192.168.122.102:6379> 
+192.168.122.102:6379> get count
+"3"
+192.168.122.102:6379> 
+	
+
+
+
+192.168.122.102:6379> set number 1
+OK
+192.168.122.102:6379> MULTI
+OK
+192.168.122.102:6379> incr number
+QUEUED
+192.168.122.102:6379> incre number
+(error) ERR unknown command 'incre'
+192.168.122.102:6379> 
+192.168.122.102:6379> exec
+(error) EXECABORT Transaction discarded because of previous errors.
+192.168.122.102:6379> 
+192.168.122.102:6379> 
+192.168.122.102:6379> 
+192.168.122.102:6379> get number
+"1"
+192.168.122.102:6379> 
+
+		
+		
+		
+		
+		
+		
+Redis安全设置：
+
+1) 设置密码
+
+[root@redis01 ~]# grep "^require" /app/redis/conf/redis.conf 
+requirepass redhat
+
+重启redis
+
+使用密码连接操作redis
+
+方法1) 
+
+[root@redis01 ~]# redis-cli 
+127.0.0.1:6379> 
+127.0.0.1:6379> set name jerry
+(error) NOAUTH Authentication required.
+127.0.0.1:6379> 
+127.0.0.1:6379> AUTH redhat
+OK
+127.0.0.1:6379> set name jerry
+OK
+127.0.0.1:6379> get name
+"jerry"
+127.0.0.1:6379> 
+	
+方法2) 
+	
+[root@redis01 ~]# redis-cli -a redhat 
+127.0.0.1:6379> set age 10
+OK
+127.0.0.1:6379> get age
+"10"
+127.0.0.1:6379> 
+
+
+2、设置命令别名
+
+[root@redis01 ~]# grep "^rename" /app/redis/conf/redis.conf 
+rename-command set uplooking
+[root@redis01 ~]# 
+
+
+[root@redis01 ~]# redis-cli -a redhat 
+127.0.0.1:6379> 
+127.0.0.1:6379> 
+127.0.0.1:6379> set age 10
+(error) ERR unknown command 'set'
+127.0.0.1:6379> 
+127.0.0.1:6379> uplooking age 10
+OK
+127.0.0.1:6379> get age
+"10"
+127.0.0.1:6379> 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+redis配置文件 redis.conf 
+
+1、指定额外的配置文件 
+
+# include /path/to/local.conf
+# include /path/to/other.conf
+
+
+2、设置redis监听的IP地址
+
+bind 192.168.122.101
+
+
+3、设置redis进程接收的TCP队列长度
+
+tcp-backlog 511
+
+同时修改内核参数
+/proc/sys/net/core/somaxconn[修改系统级别网卡接收请求的队列长度]
+/proc/sys/net/ipv4/tcp_max_syn_backlog[修改系统级别网卡接收TCP建立连接请求的队列长度]
+
+
+
+
+4、设置客户端空闲连接超时时间, 0表示不设置，单位为秒 
+
+timeout 3
+
+
+5、设置redis启动时作为后台服务运行
+
+daemonize yes
+
+
+6、指定pid文件 
+
+pidfile /var/run/redis_6379.pid
+
+
+7、设置日志级别及日志文件 
+
+loglevel notice
+logfile ""
+
+
+8、设置数据库的数量  0--15
+
+databases 16
+
+
+9、设置redis保存数据的频率
+
+设置触发redis自动保存数据的条件
+
+	save 900 1
+	save 300 10
+	save 60 10000
+
+
+持久化保存的方式：
+	1) 自动触发
+	2) 手动触发
+		bgsave 后端保存
+		save   会阻塞前端应用的连接
+		
+	
+	
+
+
+10、当bgsave发生error时，停止写操作
+
+stop-writes-on-bgsave-error yes
+
+
+11、启用压缩
+
+rdbcompression yes
+
+
+12、设置rdb数据文件名称及存放目录
+
+dbfilename dump.rdb
+dir /app/redis/data 
+
+
+
+13、设置并发连接
+
+maxclients 10000
+
+
+14、设置redis最大使用的内存
+
+maxmemory <bytes>			//建议为物理内存的3/5
+maxmemory-policy <策略名称>
+
+
+最大内存的使用策略：
+
+	noeviction		默认策略   内存空间不足时，添加新的数据会返回报错信息
+	allkeys-lru		内存不足时，redis会按照LRU(最近最少访问)算法清除缓存数据
+	allkeys-random	内存不足时，redis会随机删除缓存数据
+	volatile-lru	内存不足时，redis会在设置了过期时间的缓存数据中，按照LRU算法清除数据 
+	volatile-random 内存不足时，redis会在设置了过期时间的缓存数据中，随机清除数据
+	volatile-ttl	内存不足时，redis会在设置了过期时间的缓存数据中，优先清除过期时间较早的数据
+
+	LFU（Least Frequently Used）算法根据数据的历史访问频率来淘汰数据	
+		volatile-lfu
+		allkeys-lfu
+		
+		
+
+15、启用redis aof功能
+
+appendonly yes
+appendfilename "appendonly.aof"
+
+
+
+
+
+
+
+
+
+
+一、为PHP添加redis模块
+
+1) 安装lamp平台 
+
+[root@redis01 ~]# yum install -y httpd mariadb-server php php-gd php-mysql gd php-devel
+
+[root@redis01 ~]# systemctl start httpd
+[root@redis01 ~]# systemctl enable httpd
+
+[root@redis01 ~]# systemctl start mariadb
+[root@redis01 ~]# systemctl enable mariadb.service 
+Created symlink from /etc/systemd/system/multi-user.target.wants/mariadb.service to /usr/lib/systemd/system/mariadb.service.
+
+
+2) 安装php模块 
+
+[root@redis01 ~]# tar xf redis-3.1.2.tgz 
+[root@redis01 ~]# cd redis-3.1.2/
+[root@redis01 redis-3.1.2]# /usr/bin/phpize 
+Configuring for:
+PHP Api Version:         20100412
+Zend Module Api No:      20100525
+Zend Extension Api No:   220100525
+[root@redis01 redis-3.1.2]# 
+
+[root@redis01 redis-3.1.2]# ./configure --enable-redis --with-php-config=/usr/bin/php-config
+[root@redis01 redis-3.1.2]# make && make install
+
+安装完成后，提示redis.so模块的安装路径  Installing shared extensions:     /usr/lib64/php/modules/
+
+
+3) 编辑php配置文件，加载redis.so模块
+
+# vim /etc/php.ini
+
+extension = /usr/lib64/php/modules/redis.so
+
+[root@redis01 redis-3.1.2]# systemctl restart httpd
+
+
+
+4) 编辑php页面，测试php连接redis的效果
+
+[root@redis01 html]# cat /var/www/html/b.php 
+
+<?php
+  $redis = new Redis();
+  $redis -> connect("192.168.122.101",6379);
+  $redis -> auth("redhat");
+  $redis -> set("name","Tome");
+  $var = $redis -> get("name");
+  echo "$var";
+?>
+
+
+
+
+二、为Python添加redis模块
+
+[root@redis01 ~]# tar xf redis-2.9.1.tar.gz 
+[root@redis01 ~]# cd redis-2.9.1/
+[root@redis01 redis-2.9.1]# python setup.py install
+
+
+通过python测试连接redis
+
+
+>>> import redis
+>>> r = redis.Redis(host='192.168.122.101',port=6379,password='redhat')
+>>> r.set('foo','bar')
+True
+>>> value = r.get('foo')
+>>> print value
+bar
+>>> 
+
+
+
+
+
+
+
+
+
+
+三、配置redis多实例
+
+	Instance01		6380端口		
+	Instance02		6381端口 
+
+1) 为每个实例创建目录 
+
+[root@redis01 ~]# mkdir /app/{6380,6381} -p
+[root@redis01 ~]# mkdir /app/6380/data
+[root@redis01 ~]# mkdir /app/6381/data
+
+
+2) 为每个实例准备配置文件  
+
+[root@redis01 ~]# cp /app/redis/conf/redis.conf /app/6380/
+[root@redis01 ~]# cp /app/redis/conf/redis.conf /app/6381/
+
+
+3) 编辑实例6380的配置文件 
+
+[root@redis01 ~]# vim /app/6380/redis.conf 
+
+bind 192.168.122.101
+daemonize yes
+port 6380
+pidfile /var/run/redis_6380.pid
+dir /app/redis/instance/6380/data
+
+
+同样的方法编辑另一个实例的配置文件  
+
+
+4) 分别启动实例
+
+[root@redis01 ~]# redis-server /app/6380/redis.conf 
+[root@redis01 ~]# redis-server /app/6381/redis.conf 
+
+[root@redis01 ~]# ss -antp | grep redis
+LISTEN     0      128    192.168.122.101:6380                     *:*                   users:(("redis-server",pid=23687,fd=4))
+LISTEN     0      128    192.168.122.101:6381                     *:*                   users:(("redis-server",pid=23695,fd=4))
+[root@redis01 ~]# 
+
+ 
+5) 分别连接两个实例，进行数据读写验证
+
+[root@redis01 ~]# redis-cli -a redhat -h 192.168.122.101 -p 6380
+192.168.122.101:6380> set name martin
+OK
+192.168.122.101:6380> get name
+"martin"
+192.168.122.101:6380> quit
+
+
+[root@redis01 ~]# redis-cli -a redhat -h 192.168.122.101 -p 6381
+192.168.122.101:6381> set age 18
+OK
+192.168.122.101:6381> get age
+"18"
+192.168.122.101:6381> get name
+(nil)
+192.168.122.101:6381> 
+
+
+
+
+
+
+
+
+
+
+
+
+
+Redis主从复制
+
+	1、采用异步的方式进行数据同步
+	3、支持级联复制, 某一个slave服务器可以作为另外slave服务器的主
+	4、进行主从复制时，master/slave不会阻塞客户端访问请求
+	5、自redis 2.6版本后，slave服务器默认工作在只读模式
+	
+
+配置案例 
+
+环境描述：
+	node02	192.168.122.102		Master
+	node03	192.168.122.103		Slave
+	
+1) 分别在两个节点安装redis，并启动 
+
+2) 编辑slave服务器的配置文件  
+
+[root@node03 redis-3.2.9]# vim /app/redis/conf/redis.conf 
+
+	slaveof 192.168.122.102 6379
+	masterauth redhat
+
+3) 启动slave
+
+[root@node03 ~]# redis-server /app/redis/conf/redis.conf &
+	
+	
+4) 查看复制状态
+
+192.168.122.103:6379> info replication
+# Replication
+role:slave
+master_host:192.168.122.102
+master_port:6379
+master_link_status:up
+master_last_io_seconds_ago:10
+master_sync_in_progress:0
+slave_repl_offset:127
+slave_priority:100
+slave_read_only:1
+connected_slaves:0
+master_repl_offset:0
+repl_backlog_active:0
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:0
+repl_backlog_histlen:0
+192.168.122.103:6379> 
+
+
+5) 测试复制
+
+[root@node02 ~]# redis-cli -h 192.168.122.102
+192.168.122.102:6379> 
+192.168.122.102:6379> AUTH redhat
+OK
+192.168.122.102:6379> 
+192.168.122.102:6379> set name martin
+OK
+192.168.122.102:6379> get name
+"martin"
+192.168.122.102:6379> 
+
+
+192.168.122.103:6379> get name
+"martin"
+192.168.122.103:6379> 
+
+
+
+
+主从复制的作用：
+
+	HA 高可用 
+	
+		主服务器宕机，将从服务器提升为主
+		
+			1) 手动操作 
+			
+				> slaveof no one 
+				删除从配置文件里slaveof, masterauth配置 
+				
+			2) redis-sentinel 哨兵集群
+
+
+
+
+
+
+
+Redis分片集群cluster  
+
+	Redis 集群是一个提供在多个Redis间节点间共享数据
+	
+	Redis集群通过分区shared来提供一定程度的可用性,在实际环境中当某个节点宕机或者不可达的情况下继续处理命令. 
+	
+	Redis 集群的优势:
+		自动分割数据到不同的节点上。
+		整个集群的部分节点失败或者不可达的情况下能够继续处理命令。
+
+
+Redis集群的数据分片
+
+	Redis 集群使用哈希槽slot进行数据分片
+
+	Redis集群有16384个哈希槽,每个key通过CRC16校验后对16384取模来决定放置哪个槽.集群的每个节点负责一部分hash槽,举个例子,比如当前集群有3个节点,那么:
+	
+		节点 A 包含 0 到 5500号哈希槽.
+		节点 B 包含5501 到 11000 号哈希槽.
+		节点 C 包含11001 到 16384号哈希槽.
+
+	数据究竟存放到哪个槽上？
+		
+			数据做hash运算除以16384除余
+	
+
+
+部署redis集群 
+
+	环境描述：
+		192.168.122.101	node01	3个集群模式的实例	7000, 7001, 7002
+		192.168.122.102	node02	3个集群模式的实例 	7003, 7004, 7005
+		
+		
+1、分别在两个节点安装redis 
+
+
+2、为了方便使用创建集群命令，将其复制/app/bin 
+
+[root@node01 src]# cp redis-trib.rb /app/bin/
+
+[root@node02 ~]# cd redis-4.0.2/src/
+[root@node02 src]# cp redis-trib.rb /app/bin/
+		
+		
+3、在node01上创建3个集群模式的实例
+
+[root@node01 ~]# mkdir -p /app/redis/cluster/{7000,7001,7002}
+		
+[root@node01 ~]# cd redis-4.0.2/
+[root@node01 redis-4.0.2]# cp redis.conf /app/redis/cluster/7000/
+[root@node01 redis-4.0.2]# cp redis.conf /app/redis/cluster/7001/
+[root@node01 redis-4.0.2]# cp redis.conf /app/redis/cluster/7002/
+		
+		
+[root@node01 ~]# vim /app/redis/cluster/7000/redis.conf 
+				
+	bind 192.168.122.101
+	port 7000
+	daemonize yes
+	pidfile /var/run/redis_7000.pid
+	cluster-enabled yes
+	cluster-config-file nodes-7000.conf
+	cluster-node-timeout 5000
+	appendonly yes
+
+其他实例参照以上修改 
+		
+		
+
+4、分别启动实例 
+
+[root@node01 ~]# redis-server /app/redis/cluster/7000/redis.conf 
+[root@node01 ~]# redis-server /app/redis/cluster/7001/redis.conf 
+[root@node01 ~]# redis-server /app/redis/cluster/7002/redis.conf 
+
+		
+[root@node02 ~]# redis-server /app/redis/cluster/7003/redis.conf 
+[root@node02 ~]# redis-server /app/redis/cluster/7004/redis.conf 
+[root@node02 ~]# redis-server /app/redis/cluster/7005/redis.conf 
+
+	
+[root@node01 ~]# netstat -antp | grep redis
+tcp        0      0 192.168.122.101:17000   0.0.0.0:*               LISTEN      14045/redis-server  
+tcp        0      0 192.168.122.101:17001   0.0.0.0:*               LISTEN      14050/redis-server  
+tcp        0      0 192.168.122.101:17002   0.0.0.0:*               LISTEN      14055/redis-server  
+tcp        0      0 192.168.122.101:7000    0.0.0.0:*               LISTEN      14045/redis-server  
+tcp        0      0 192.168.122.101:7001    0.0.0.0:*               LISTEN      14050/redis-server  
+tcp        0      0 192.168.122.101:7002    0.0.0.0:*               LISTEN      14055/redis-server  
+[root@node01 ~]# 
+[root@node01 ~]# ps aux | grep redis
+root     14045  0.1  0.4 147308  9608 ?        Ssl  14:24   0:00 redis-server 192.168.122.101:7000 [cluster]
+root     14050  0.1  0.4 147308  9608 ?        Ssl  14:24   0:00 redis-server 192.168.122.101:7001 [cluster]
+root     14055  0.1  0.4 147308  9608 ?        Ssl  14:24   0:00 redis-server 192.168.122.101:7002 [cluster]
+		
+		
+		
+5、创建集群
+
+	创建集群时需要使用redis-trib.rb工具，该工具是由ruby语言编写，因此需要机器有ruby环境		
+		
+[root@node01 ~]# yum install -y ruby ruby-devel rubygems rpm-build
+
+[root@node01 ~]# gem install redis
+Fetching: redis-4.0.0.gem (100%)
+ERROR:  Error installing redis:
+	redis requires Ruby version >= 2.2.2.
+[root@node01 ~]# 
+[root@node01 ~]# rpm -q ruby
+ruby-2.0.0.648-30.el7.x86_64
+
+redis需要ruby 2.2版本以上的支持，使用工具rvm(ruby version manager)安装ruby 
+
+以下是使用rvm安装ruby的过程
+
+1) 安装rvm 
+
+[root@node01 ~]# gpg2 --keyserver hkp://keys.gnupg.net --recv-keys D39DC0E3
+[root@node01 ~]# curl -L get.rvm.io | bash -s stable
+[root@node01 ~]# source /app/rvm/scripts/rvm 
+
+
+2) 查看可用的ruby版本 
+
+[root@node01 ~]# rvm list known
+
+
+3) 安装2.3.4版本的ruby 
+
+[root@node01 ~]# rvm install 2.3.4
+
+
+4) 配置系统使用ruby 2.3.4
+
+[root@node01 ~]# rvm use 2.3.4
+Using /app/rvm/gems/ruby-2.3.4
+[root@node01 ~]# rvm use 2.3.4 --default
+Using /app/rvm/gems/ruby-2.3.4
+[root@node01 ~]# 
+[root@node01 ~]# rvm remove 2.0.0
+ruby-2.0.0-p648 - #already gone
+Using /app/rvm/gems/ruby-2.3.4
+[root@node01 ~]# 
+[root@node01 ~]# ruby --version
+ruby 2.3.4p301 (2017-03-30 revision 58214) [x86_64-linux]
+[root@node01 ~]# 
+
+
+5) 再次安装redis gem 
+
+[root@node01 ~]# gem install redis
+
+
+
+
+创建集群 
+
+[root@node01 ~]# redis-trib.rb create --replicas 1 \
+> 192.168.122.101:7000 \
+> 192.168.122.101:7001 \
+> 192.168.122.101:7002 \
+> 192.168.122.102:7003 \
+> 192.168.122.102:7004 \
+> 192.168.122.102:7005 \
+
+集群创建完毕后会有以下提示
+
+[OK] All 16384 slots covered.
+
+
+选项：
+
+	--replicas 1	为集群里的每个master节点配备一个slave节点 
+
+
+
+
+
+6、向集群当中储存数据 
+
+
+[root@node01 ~]# redis-cli -h 192.168.122.101 -p 7000 -c
+192.168.122.101:7000> set a 10
+-> Redirected to slot [15495] located at 192.168.122.101:7001
+OK
+192.168.122.101:7001> set b 10
+-> Redirected to slot [3300] located at 192.168.122.101:7000
+OK
+192.168.122.101:7000> 
+
+
+[root@node02 ~]# redis-cli -h 192.168.122.102 -p 7003 -c
+192.168.122.102:7003> 
+192.168.122.102:7003> 
+192.168.122.102:7003> get a 
+-> Redirected to slot [15495] located at 192.168.122.101:7001
+"10"
+192.168.122.101:7001> get b
+-> Redirected to slot [3300] located at 192.168.122.101:7000
+"10"
+192.168.122.101:7000> set name martin
+-> Redirected to slot [5798] located at 192.168.122.102:7003
+OK
+192.168.122.102:7003> set age 10
+-> Redirected to slot [741] located at 192.168.122.101:7000
+OK
+192.168.122.101:7000> 
+
+
+
+
+
+
+
+
+
+redis sentinel哨兵集群实现tomcat的会话保持  
+
+
+	redis sentinel 哨兵集群   redis 2.X 
+		
+		结合主从复制，实现主服务器高可用 
+
+
+
+1、配置redis一主两从复制环境 
+
+
+2、安装配置redis sentinel 
+
+1) 安装redis 
+
+2) 复制sentinel配置文件
+	
+[root@redis_sentinel ~]# mkdir /app/redis/conf
+[root@redis_sentinel ~]# cd redis-2.6.14/
+[root@redis_sentinel redis-2.6.14]# cp sentinel.conf /app/redis/conf/
+
+[root@redis_sentinel src]# cp /root/redis-2.6.14/src/redis-sentinel /app/redis/bin/
+
+
+
+3) 编辑sentinel.conf配置文件，监控主从复制环境 
+
+[root@redis_sentinel ~]# vim /app/redis/conf/sentinel.conf 
+
+	port 26379
+	sentinel monitor mymaster 192.168.122.215 6380 1
+	sentinel down-after-milliseconds mymaster 30000
+	sentinel parallel-syncs mymaster 1
+	sentinel failover-timeout mymaster 60000
+
+
+4) 启动哨兵 
+
+[root@redis_sentinel ~]# redis-sentinel /app/redis/conf/sentinel.conf 
+
+
+5) 测试哨兵 
+
+停止master redis 
+
+[root@redis_server ~]# redis-cli -h 192.168.122.215 -p 6380 shutdown
+
+[root@redis_server ~]# redis-cli -h 192.168.122.215 -p 6381
+redis 192.168.122.215:6381> info replication
+# Replication
+role:slave
+master_host:192.168.122.215
+master_port:6382
+master_link_status:up
+
+
+[root@redis_server ~]# redis-cli -h 192.168.122.215 -p 6382
+redis 192.168.122.215:6382> info replication
+# Replication
+role:master
+connected_slaves:1
+slave0:192.168.122.215,6381,online
+
+
+[root@redis_server ~]# redis-cli -h 192.168.122.215 -p 6380
+redis 192.168.122.215:6380> 
+redis 192.168.122.215:6380> info replication
+# Replication
+role:slave
+master_host:192.168.122.215
+master_port:6382
+
+
+
+
+3、安装配置nginx, tomcat实现负载均衡 
+
+tomcat测试页面：
+
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+pageEncoding="UTF-8"%>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://
+www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;
+charset=UTF-8">
+<title>你好</title>
+</head>
+<%for(int i=1;i<=6;i++){ %>
+<h<%=i%> align="center">欢迎访问 tomcat 1 jsp页面！</
+h<%=i%>>
+<%} %>
+<body>
+<center>
+<%= request.getSession().getId() %>				//获取用户请求的会话ID 
+</body>
+</html>
+
+
+
+
+4、配置tomcat连接redis实现会话保持 
+
+1) 将jar包放到tomcat lib目录 
+
+[root@tomcat_server_01 ~]# cp commons-pool2-2.4.2.jar commons-logging-1.2.jar tomcat-cluster-redis-session-manager-2.0.jar jedis-2.9.0.jar /app/apache-tomcat-8.5.11/lib 
+
+
+2) 编辑context.xml，指定后端redis集群连接信息 
+
+[root@tomcat_server_01 ~]# vim /app/apache-tomcat-8.5.11/conf/context.xml 
+
+
+<Valve className="com.orangefunction.tomcat.redissessions.RedisSessionHandlerValve" />
+<Manager className="com.orangefunction.tomcat.redissessions.RedisSessionManager"
+         maxInactiveInterval="60"
+         sentinelMaster="mymaster"
+         sentinels="192.168.122.156:26379"
+/>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

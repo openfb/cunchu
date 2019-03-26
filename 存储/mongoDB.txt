@@ -1,0 +1,1436 @@
+MongoDB
+
+	MongoDB是一个提供了高性能、高可用及自动伸缩功能的开源的文档数据库(Document Database),由C++语言编写。旨在为web应用提供可扩展的高性能数据存储解决方案
+
+	文档数据库
+	
+		在MongoDB中一条记录就是一个文档，文档本身类似于JSON对象，其数据结构是组合的键值对。
+	
+		文档的优势在于：
+			1) 文档可以对应到许多编程语言内置的数据类型
+			2) 内嵌的文档和数组结构减少了跨表查询
+			3) 自由的表结构支持流畅的多态
+	
+MongoDB特点
+
+	1、模式自由：可以把不同结构的文档存储在同一个数据库里
+	2、面向集合的存储：适合存储JSON风格文件的形式
+	3、完整的索引支持：对任何属性可索引
+	4、复制和高可用：支持服务器间的数据复制，支持主-从模式
+	5、自动分片：自动分片功能支持水平的数据库集群，可动态添加额外的机器 
+	6、丰富的查询：支持丰富的查询表达式，查看指令使用JSON形式的标记，可轻易查询文档中的内嵌对象及数组
+	7、快速就地更新：查询优化器会分析查询表达式，并生成一个高效的查询计划
+	8、高效的传统存储方式：支持二进制数据及大型对象(如照片或图片)
+	
+	
+MongoDB应用案例
+
+	Craiglist上使用MongoDB的存档数十亿条记录。
+	FourSquare，基于位置的社交网站，在Amazon EC2的服务器上使用MongoDB分享数据。
+	Shutterfly，以互联网为基础的社会和个人出版服务，使用MongoDB的各种持久性数据存储的要求。
+	bit.ly, 一个基于Web的网址缩短服务，使用MongoDB的存储自己的数据。
+	spike.com，一个MTV网络的联营公司， spike.com使用MongoDB的。
+	Intuit公司，一个为小企业和个人的软件和服务提供商，为小型企业使用MongoDB的跟踪用户的数据。
+	sourceforge.net，资源网站查找，创建和发布开源软件免费，使用MongoDB的后端存储。
+	etsy.com ，一个购买和出售手工制作物品网站，使用MongoDB。
+	纽约时报，领先的在线新闻门户网站之一，使用MongoDB。
+	CERN，著名的粒子物理研究所，欧洲核子研究中心大型强子对撞机的数据使用MongoDB。
+	
+	
+	
+MongoDB基本概念
+
+	1、数据库  database
+	2、集合	   collection，类似于数据表
+	3、文档	   document， 类似于记录
+	4、字段	   field，类似于字段
+	
+	
+	
+	
+MongoDB安装与启动
+
+1、解压缩软件到安装目录 /app 
+
+[root@node1 ~]# mkdir /app
+[root@node1 ~]# cd /software/
+[root@node1 software]# tar xf mongodb-linux-x86_64-rhel70-3.4.3.tgz 
+[root@node1 software]# mv mongodb-linux-x86_64-rhel70-3.4.3 /app/mongodb
+[root@node1 software]# 	
+
+2、创建数据目录及日志目录 	
+[root@node1 mongodb]# mkdir /app/mongodb/data
+[root@node1 mongodb]# mkdir /app/mongodb/log	
+	
+3、启动mongod
+
+[root@node1 log]# /app/mongodb/bin/mongod --dbpath=/app/mongodb/data/ --logpath=/app/mongodb/log/mongo.log --logappend --port 27017 --fork
+
+	选项说明：
+		--logappend 	以追加的方式记录日志
+		--fork			以后台服务的方式记录
+	
+[root@node1 log]# netstat -antp | grep mongo
+tcp        0      0 0.0.0.0:27017           0.0.0.0:*               LISTEN      2246/mongod 	
+	
+
+设置mongodb开机自启动
+
+
+[root@node01 ~]# tail -n 1 /etc/rc.d/rc.local 
+
+	mongod --dbpath=/app/mongodb/data --logpath=/app/mongodb/log/mongo.log --logappend --port 27017 --fork
+
+[root@node01 ~]# chmod a+x /etc/rc.d/rc.local
+
+
+
+	
+4、连接mongoDB、关闭数据库
+
+[root@node1 bin]# pwd
+/app/mongodb/bin
+[root@node1 bin]# ./mongo
+
+关闭数据库
+> use admin
+> db.shutdownServer()
+> exit
+
+也可以使用kill -2 <进程>或者kill -4 <进程>的方式关闭数据库，但不建议使用kill -9，会导致数据丢失、损坏
+
+
+首次连接数据库时，会看到两个内核参数的警告，内核参数解释如下：
+
+[root@node1 ~]# echo never > /sys/kernel/mm/transparent_hugepage/enabled
+[root@node1 ~]# echo never > /sys/kernel/mm/transparent_hugepage/defrag
+
+
+	透明大页管理和标准大页管理都是操作系统为了减少页表转换消耗的资源而发布的新特性，虽然Oracle建议利用大页机制来提高数据库的性能，但是Oracle却同时建议关闭透明大页管理。这二者的区别在于大页的分配机制，标准大页管理是预分配的方式，而透明大页管理则是动态分配的方式。
+	
+	对于数据库来讲这种动态的分配方式在系统负载很高的情况下非常有可能导致数据库出现严重的性能问题。
+
+
+	
+5、编辑mongo配置文件，以配置文件的方式启动
+
+[root@node1 bin]# cat /app/mongodb/mongodb.conf 
+
+	bind_ip=192.168.0.105
+	port=27017
+	dbpath=/app/mongodb/data
+	logpath=/app/mongodb/log/mongo.log
+	pidfilepath=/app/mongodb/mongo.pid
+	fork=true
+	logappend=true
+	auth=false
+	
+	directoryperdb=true			
+
+[root@node1 bin]# mongod -f /app/mongodb/mongodb.conf 	
+	
+mongoDB设置监听地址后，连接数据库时需要使用--host指定IP、--port指定端口
+
+[root@node1 game]# mongo --host 192.168.0.105 --port 27017	
+	
+
+配置文件其他选项说明 ：
+
+	1) maxConns		
+		设置最大客户端连接数，不能设置该值大于20000
+		
+	2) directoryperdb=true 
+	
+		设置以每目录的方式存储数据库，默认值为false
+		此值要在规划mongoDB安装时设置，否则，在运行一段时间的服务器上设置后，原数据会消失。在配置文件中取消该值后，原数据恢复
+	
+	3) slowms = 200
+	
+		设置慢查询的时间，单位为毫秒
+	
+	
+	
+	
+	
+	
+	
+数据库基本操作
+
+
+1、查看数据库
+
+> show dbs
+admin  0.000GB
+local  0.000GB
+
+
+2、查看当前数据库
+
+> db
+game
+> 
+
+> db.getName()
+game
+> 
+
+
+3、创建数据库
+
+> use <db_name>
+
+数据库如果存在，则为切换数据库，否则为创建数据库
+
+> use game
+switched to db game
+
+> show dbs
+admin  0.000GB
+local  0.000GB
+
+此时使用show dbs命令查看不到game库，因为game库中没有数据；可通过以下方式在game库中创建一个集合tb01
+
+> use game
+switched to db game
+> db.createCollection("tb01")
+{ "ok" : 1 }
+> show dbs
+admin  0.000GB
+game   0.000GB
+local  0.000GB
+> 
+
+
+4、删除当前使用的数据库
+
+> db.dropDatabase()
+{ "dropped" : "game", "ok" : 1 }
+
+> show dbs
+admin  0.000GB
+local  0.000GB
+> 
+
+
+
+5、查看当前数据库状态 
+
+> db.stats()
+{
+	"db" : "game",
+	"collections" : 1,
+	"views" : 0,
+	"objects" : 0,
+	"avgObjSize" : 0,
+	"dataSize" : 0,
+	"storageSize" : 4096,
+	"numExtents" : 0,
+	"indexes" : 1,
+	"indexSize" : 4096,
+	"ok" : 1
+}
+> 
+
+
+6、显示数据库版本
+
+> db.version()
+3.4.3
+
+
+
+7、查看数据库当前监听地址
+
+> db.getMongo()
+connection to 127.0.0.1:27017
+> 
+
+
+
+
+集合collection相关操作
+
+1、查看数据库中的集合
+
+> use game
+switched to db game
+> show collections
+tb01
+> 
+
+
+
+2、创建集合 
+
+语法：
+
+db.createCollection(name, { size : ..., capped : ..., max : ... } )
+
+	name：集合名称 
+	capped：指定为true时，表示创建上限集合(即当集合中文档数量达到一定量时，会覆盖旧的文档)，此参数为true时，需要指定size参数
+	size：指定该集合中文档的大小，以Byte为单位 
+	max：指定该集合中最大文档数量 
+	
+> db.createCollection("tb02")
+{ "ok" : 1 }
+
+> db.createCollection("tb03",{capped: true, size: 100000, max: 10000})
+{ "ok" : 1 }
+
+> show collections
+tb01
+tb02
+tb03	
+
+向一个不存在的集合中插入文档时，也会自动创建该集合
+
+> db.tb04.insert({"name": "martin", "age": 20})
+
+> show collections
+tb01
+tb02
+tb03
+tb04
+> 
+
+
+
+3、获取指定名称的集合
+
+> db.getCollection("tb01")
+game.tb01
+
+> db.getCollection("tb02")
+game.tb02
+> 
+
+
+4、查看当前数据库中所有集合名称 
+
+> db.getCollectionNames()
+[ "tb01", "tb02", "tb03", "tb04" ]
+> 
+	
+	
+5、删除集合
+
+> db.tb01.drop()
+true
+> db.tb02.drop()
+true	
+	
+
+	
+	
+文档增、删、改、查
+
+MongoDB支持许多数据类型
+
+	字符串 - 这是用于存储数据的最常用的数据类型。MongoDB中的字符串必须为UTF-8。
+	整型 - 此类型用于存储数值。 整数可以是32位或64位，具体取决于服务器。
+	布尔类型 - 此类型用于存储布尔值(true / false)值。
+	双精度浮点数 - 此类型用于存储浮点值。
+	最小/最大键 - 此类型用于将值与最小和最大BSON元素进行比较。
+	数组 - 此类型用于将数组或列表或多个值存储到一个键中。
+	时间戳 - ctimestamp，当文档被修改或添加时，可以方便地进行录制。
+	对象 - 此数据类型用于嵌入式文档。
+	对象 - 此数据类型用于嵌入式文档。
+	Null - 此类型用于存储Null值。
+	符号 - 该数据类型与字符串相同; 但是，通常保留用于使用特定符号类型的语言。
+	日期 - 此数据类型用于以UNIX时间格式存储当前日期或时间。您可以通过创建日期对象并将日，月，年的日期进行指定自己需要的日期时间。
+	对象ID - 此数据类型用于存储文档的ID。
+	二进制数据 - 此数据类型用于存储二进制数据。
+	代码 - 此数据类型用于将JavaScript代码存储到文档中。
+	正则表达式 - 此数据类型用于存储正则表达式。
+
+
+	
+1、插入文档
+
+语法1)：
+
+> db.<collection_name>.insert(document)
+
+示例：
+
+> db.tb01.insert({id:001, name: "martin", description: "test"})
+WriteResult({ "nInserted" : 1 })
+
+> db.tb01.insert({
+... _id: 100,
+... title: "MongoDB Overview",
+... description: "MongoDB is no sql database",
+... by: "martin",
+... url: "www.martin.com",
+... tags: ["mongodb","database","NoSQL"],
+... likes: 100
+... })
+WriteResult({ "nInserted" : 1 })
+> 
+	
+	
+在插入文档时如果不指定_id，则mongoDB会为此文档生成一个唯一的objectID
+	
+	
+同时插入多个文档
+
+> db.tb01.insert([
+... {
+... 	_id: 101,
+... 	title: "MongoDB Guide",
+... 	description: "MongoDB is no sql database",
+... 	by: "martin",
+... 	url: "www.martin.com",
+... 	tags: ["mongodb","database","NoSQL"],
+... 	likes: 100
+... },
+... 
+... {
+... 	_id: 102,
+... 	title: "NoSQL Database",
+... 	description: "NoSQL database doesn't have tables",
+... 	by: "martin",
+... 	url: "www.martin.com",
+... 	tags: ["mongodb","database","NoSQL"],
+... 	likes: 210,
+... 	comments: [
+... 		{
+... 			user: "user1",
+... 			message: "My first comment",
+... 			dateCreated: new Date(2017,12,5,19,24),
+... 			like: 0
+... 		}
+... 	]
+... },
+... 
+... {
+... 	_id: 103,
+... 	title: "Python Quick Guide",
+... 	description: "Python Quick start",
+... 	by: "martin",
+... 	url: "www.martin.com",
+... 	tags: ["Python","database","NoSQL"],
+... 	likes: 30,
+... 	comments: [
+... 		{
+... 			user: "user1",
+... 			message: "My first comment",
+... 			dateCreated: new date(2018,11,10,2,35),
+... 			like: 580
+... 		}
+... 	]
+... }
+... ])
+	
+	
+	
+语法2): 
+
+> db.collection_name.insertOne(document)	
+	
+此方法会返回一个插入文档的ObjectID
+
+示例： 
+
+> db.inventory.insertOne(
+...   { item: "canvas", qty: 100, tags: ["cotton"], size: { h: 28, w: 35.5, uom: "cm" }}
+... )
+{
+	"acknowledged" : true,
+	"insertedId" : ObjectId("5a2683e4b4720e8514e971a1")
+}
+	
+	
+
+语法3):
+
+> db.collection_name.insertMany(document)	
+	
+此方法会返回文档的objectID
+
+> db.inventory.insertMany([
+...   { item: "journal", qty: 25, tags: ["blank","red"], size: {h: 14, w: 21, uom: "cm"}},
+...   { item: "mat", qty: 85, tags: ["gray"], size: {h: 27.9, w: 35.5, uom: "cm"}},
+...   { item: "mousepad", qty: 25, tags: ["gel", "blue"], size: {h: 19, w: 22.85, uom: "cm"}}
+... ])
+{
+	"acknowledged" : true,
+	"insertedIds" : [
+		ObjectId("5a2684d6b4720e8514e971a2"),
+		ObjectId("5a2684d6b4720e8514e971a3"),
+		ObjectId("5a2684d6b4720e8514e971a4")
+	]
+}
+> 
+
+
+
+
+
+查询文档
+
+语法：
+
+> db.collection_name.find()
+
+该方法以非结构化的方式显示所有数据，如果想使用结构化方式显示数据，需要使用pretty()方法
+
+> db.collection_name.find().pretty()
+
+
+> db.tb01.find().pretty()
+
+
+
+mongodb比较运算符的使用：
+
+1、{<key>: <value>}     等于
+
+> db.tb01.find(
+...   { _id: 103 }
+... ).pretty()
+
+
+2、{<key>: {$lt:<value>}}  小于
+
+> db.tb01.find(
+...   {_id: {$lt: 102}}
+... ).pretty()
+
+
+3、{<key>: {$lte:<value>}} 小于等于
+
+> db.tb01.find(
+...   {_id: {$lte: 102}}
+... ).pretty()
+
+
+4、{<key>: {$gt:<value>}}  大于
+
+> db.tb01.find(
+...   {_id: {$gt: 102}}
+... ).pretty()
+
+
+5、{<key>: {$gte:<value>}} 大于等于
+
+> db.tb01.find(
+...   { _id: {$gte: 102} }
+... ).pretty()
+
+
+6、{<key>: {$ne:<value>}}	不等于
+
+> db.tb01.find(
+...   {_id: {$ne: 102}}
+... ).pretty()
+
+
+
+
+逻辑运算符的使用
+
+1、AND
+
+语法：
+
+> db.collection_name.find(
+	{
+		$and: [
+			{key: value}, {key: value}
+		]
+	}
+)
+
+
+> db.tb01.find(
+...   {
+...     $and: [
+...        { by: "martin" }, { title: "MongoDB Overview" }
+...     ]
+...   }
+... ).pretty()
+{
+	"_id" : 100,
+	"title" : "MongoDB Overview",
+	"description" : "MongoDB is no sql database",
+	"by" : "martin",
+	"url" : "www.martin.com",
+	"tags" : [
+		"mongodb",
+		"database",
+		"NoSQL"
+	],
+	"likes" : 100
+}
+> 
+
+
+
+
+2、OR
+
+语法：
+
+> db.collection_name.find(
+  {
+      $or: [
+		{key: value}, {key: value}
+	  ]
+  }
+)
+
+
+> db.tb01.find(
+...   {
+...     $or: [
+...        { title: "MongoDB Overview" }, { title: "MongoDB Guide" }
+...     ]
+...   }
+... ).pretty()
+
+
+
+3、AND/OR同时使用
+
+> db.tb01.find(
+...   {
+...     by: "martin",
+...     $or: [
+...        { title: "MongoDB Overview" }, { title: "MongoDB Guide" }
+...     ]
+...   }
+... ).pretty()
+
+
+	
+
+	
+显示指定字段的数据(投影)
+
+> db.collection_name.find({},{key:1,key:1,...})
+
+MongoDB的find()方法，其中第二个参数表示显示指定字段的数据,其中上述格式中key为指定的字段名称，值为1表示仅显示该字段的数据
+
+> db.inventory.find({},{_id:1, item:1})
+{ "_id" : ObjectId("5a2683e4b4720e8514e971a1"), "item" : "canvas" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a2"), "item" : "journal" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a3"), "item" : "mat" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a4"), "item" : "mousepad" }
+{ "_id" : ObjectId("5a268f122b720c3680067af1"), "item" : "journal" }
+
+	
+find()方法总是显示_id字段的数据，如果不想显示_id字段的数据，则需要把_id设置为0
+
+> db.inventory.find({},{_id:0, item:1})
+{ "item" : "canvas" }
+{ "item" : "journal" }
+{ "item" : "mat" }
+{ "item" : "mousepad" }
+{ "item" : "journal" }
+	
+	
+	
+	
+限制显示文档的数量
+
+limit(number)方法 
+
+	限制 MongoDB 中返回的记录数，需要使用limit()方法。 
+	该方法接受一个数字类型参数，它表示要显示的文档数。
+	
+
+示例：显示结果集的前三行记录
+	
+> db.inventory.find({},{_id:0, item:1}).limit(3)
+{ "item" : "canvas" }
+{ "item" : "journal" }
+{ "item" : "mat" }
+> 
+
+
+skip(number)方法
+
+	skip()表示要跳过的记录数量 
+
+示例：跳过结果集的前三行不显示
+
+> db.inventory.find({},{_id:0, item:1}).skip(3)
+{ "item" : "mousepad" }
+{ "item" : "journal" }
+{ "item" : "notebook" }
+{ "item" : "paper" }
+{ "item" : "planner" }
+{ "item" : "postcard" }
+
+
+示例：仅显示第三行记录
+
+> db.inventory.find({},{_id:0, item:1}).skip(2).limit(1)
+{ "item" : "mat" }
+> 
+
+
+
+
+
+按字段排序显示数据
+
+排序显示数据需要使用sort()方法，语法如下：
+
+	> db.collection_name.find().sort({key:1})
+
+	其中sort({key:1})，1表示升序，-1表示降序
+
+
+示例：按item字段升序显示数据
+
+> db.inventory.find({},{_id:1, item: 1}).sort({item:1})
+{ "_id" : ObjectId("5a2683e4b4720e8514e971a1"), "item" : "canvas" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a2"), "item" : "journal" }
+{ "_id" : ObjectId("5a268f122b720c3680067af1"), "item" : "journal" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a3"), "item" : "mat" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a4"), "item" : "mousepad" }
+
+
+示例：按item字段降序显示数据 
+
+> db.inventory.find({},{_id:1, item:1}).sort({item:-1})
+{ "_id" : ObjectId("5a268f122b720c3680067af5"), "item" : "postcard" }
+{ "_id" : ObjectId("5a268f122b720c3680067af4"), "item" : "planner" }
+{ "_id" : ObjectId("5a268f122b720c3680067af3"), "item" : "paper" }
+{ "_id" : ObjectId("5a268f122b720c3680067af2"), "item" : "notebook" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a4"), "item" : "mousepad" }
+{ "_id" : ObjectId("5a2684d6b4720e8514e971a3"), "item" : "mat" }
+
+
+
+
+
+
+
+聚合运算操作
+
+
+示例01：按by_user字段进行分组，并对出现的用户进行+1操作
+
+> db.article.aggregate(
+...  [
+...    { $group: {_id: "$by_user", number: {$sum: 1}} }
+...  ]
+... )
+{ "_id" : "Curry", "number" : 1 }
+{ "_id" : "Kuber", "number" : 1 }
+{ "_id" : "Maxsu", "number" : 2 }
+
+
+示例02：按by_user进行分组， 并对字段likes进行平均值运算
+
+> db.article.aggregate(
+...  [
+...    { $group: {_id: "$by_user", number: {$avg: "$likes"}} }
+...  ]
+... )
+{ "_id" : "Curry", "number" : 350 }
+{ "_id" : "Kuber", "number" : 750 }
+{ "_id" : "Maxsu", "number" : 55 }
+> 
+
+
+示例03：按by_user进行分组，并对字段likes计算最小值 
+
+> db.article.aggregate(
+...  [
+...    { $group: {_id: "$by_user", number: {$min: "$likes"}} }
+...  ]
+... )
+{ "_id" : "Curry", "number" : 350 }
+{ "_id" : "Kuber", "number" : 750 }
+{ "_id" : "Maxsu", "number" : 10 }
+> 
+
+
+示例04：按by_user进行分组， 并对字段likes计算最大值 
+
+> db.article.aggregate(
+...  [
+...    { $group: { _id: "$by_user", number: {$max: "$likes"}} }
+...  ]
+... )
+{ "_id" : "Curry", "number" : 350 }
+{ "_id" : "Kuber", "number" : 750 }
+{ "_id" : "Maxsu", "number" : 100 }
+> 
+
+
+示例05：按name字段进行分组，获取url字段中的第一行记录
+
+> db.test.aggregate(
+...  [
+...    { $group: {_id: "$name", first_url: {$first: "$url"}} }
+...  ]
+... )
+{ "_id" : "tom", "first_url" : "www.d.org" }
+{ "_id" : "jerry", "first_url" : "www.c.org" }
+{ "_id" : "martin", "first_url" : "www.a.org" }
+	
+	
+示例06：按name字段进行分组，获取url字段中最后一行记录
+
+> db.test.aggregate(
+...  [
+...    { $group: {_id: "$name", last_url: {$last: "$url"}} }
+...  ]
+... )
+{ "_id" : "tom", "last_url" : "www.d.org" }
+{ "_id" : "jerry", "last_url" : "www.c.org" }
+{ "_id" : "martin", "last_url" : "www.b.org" }
+> 	
+	
+ 
+示例07：按name字段进行分组，并将url字段的值以数组的方式显示，重复项会多次显示 
+
+> db.test.aggregate(
+...  [
+...    { $group: {_id: "$name", new_url: {$push: "$url"}} }
+...  ]
+... )
+{ "_id" : "tom", "new_url" : [ "www.d.org" ] }
+{ "_id" : "jerry", "new_url" : [ "www.c.org" ] }
+{ "_id" : "martin", "new_url" : [ "www.a.org", "www.b.org", "www.a.org" ] }
+> 
+
+
+
+示例08：按name字段进行分组，并将url字段的值以数组的方式显示，重复项仅会显示一次 
+
+> db.test.aggregate(
+...  [
+...    { $group: {_id: "$name", new_url: {$addToSet: "$url"}} }
+...  ]
+... )
+{ "_id" : "tom", "new_url" : [ "www.d.org" ] }
+{ "_id" : "jerry", "new_url" : [ "www.c.org" ] }
+{ "_id" : "martin", "new_url" : [ "www.b.org", "www.a.org" ] }
+> 
+
+
+	
+	
+更新文档
+
+	mongodb更新文档可使用update()方法或者save()方法
+	
+	update()方法用于更新现有文档中的值
+	
+	save()方法用于替换现有文档
+	
+	
+> db.tb01.update({ title: "MongoDB Overview" },
+...   {$set: { title: "New Update MongoDB Overview" }})
+WriteResult({ "nMatched" : 1, "nUpserted" : 0, "nModified" : 1 })
+> 
+
+update()方法一次只更新一个文档，如需更新多个，则需要将参数multi设置为true	
+	
+	
+> db.tb01.update(
+...   { url: "www.martin.com" },
+...   { $set: {url: "http://www.martin.com"} },
+...   { multi: true }
+... )
+WriteResult({ "nMatched" : 3, "nUpserted" : 0, "nModified" : 3 })
+> 
+> 
+	
+	
+save()方法直接替换文档
+
+> db.tb01.save(
+...   {
+...     _id: 100, title: "Updated by save() method", by: "martin"
+...   }
+... )
+WriteResult({ "nMatched" : 1, "nUpserted" : 0, "nModified" : 1 })
+	
+	
+> db.tb01.save(
+...   {
+...     title: "MongoDB Guide", by: "jerry"
+...   }
+... )
+WriteResult({ "nInserted" : 1 })
+	
+	
+	
+	
+
+
+
+
+删除文档
+
+语法：
+
+> db.collection_name.remove(conditon, justOne=true)
+
+	justOne：表示只删除一条数据 
+
+示例01： 删除作者为martin的文档
+
+> db.tb01.remove({ by: "martin" })
+WriteResult({ "nRemoved" : 4 })
+> 
+> db.tb01.find({ by: "martin" }).pretty()
+> 
+
+
+示例02：仅删除名称为martin的一条数据 
+
+> db.tb01.remove(
+...   { name: "martin" }, 
+...   { justOne: true}
+... )
+
+
+示例03：删除所有文档
+
+> db.tb01.remove( {}, {justOne: false})
+WriteResult({ "nRemoved" : 2 })
+
+> db.tb01.find().pretty()
+> 
+
+
+
+
+
+
+
+
+
+索引Index
+
+	索引支持查询的有效地提高效率。没有索引，MongoDB必须扫描集合的每个文档，以选择与查询语句匹配的文档。这种扫描效率很低，需要 MongoDB 处理大量的数据。
+
+	索引是特殊的数据结构，以易于遍历的形式存储数据集的一小部分。 索引存储特定字段或一组字段的值，按照索引中指定的字段值排序
+
+	创建索引，需要使用ensureIndex()方法，语法如下： 
+	
+		> db.collection_name.ensureIndex({key:1})
+		
+			key：1， key为指定的字段名称，1表示升序，-1表示降序
+			
+			
+示例：将item字段设置为索引，并按字段升序排列
+
+> db.inventory.ensureIndex({item:1})
+{
+	"createdCollectionAutomatically" : false,
+	"numIndexesBefore" : 1,
+	"numIndexesAfter" : 2,
+	"ok" : 1
+}
+
+示例：将字段item、字段qty设置为索引
+
+> db.inventory.ensureIndex({item:1, qty:1})
+{
+	"createdCollectionAutomatically" : false,
+	"numIndexesBefore" : 2,
+	"numIndexesAfter" : 3,
+	"ok" : 1
+}
+
+
+在创建索引时，可指定如下选项：
+
+1) backgroud，值为true或者false
+
+	在后台创建索引，以便构建索引时不会阻止其他数据库操作，默认为false
+	
+2) unique   值为true或者false
+
+	创建唯一索引，默认值为false
+	
+3) name 
+
+	指定索引的名称。如果未指定，mongoDB通过连接索引字段的名称和排序顺序来生成索引名称 
+	
+
+4) dropDups	值为true或者false
+
+	创建唯一索引时，如果出现重复删除后续出现的相同索引，只保留第一个
+	默认值为false
+	
+5) sparse	值为true或者false
+
+	对文档中不存在的字段数据不启用索引
+	默认值为false
+
+
+
+查看索引
+
+> db.inventory.getIndexes()
+[
+	{
+		"v" : 2,
+		"key" : {
+			"_id" : 1
+		},
+		"name" : "_id_",
+		"ns" : "game.inventory"
+	},
+
+
+
+删除索引 
+
+示例：删除名称为name_1的索引
+
+
+> db.test.dropIndex("name_1")
+{ "nIndexesWas" : 2, "ok" : 1 }
+
+
+示例：删除所有索引
+
+> db.inventory.dropIndexes()
+
+	集合中将_id字段自动设置为索引，删除所有索引时，_id字段的索引不会删除 
+
+
+
+
+
+	
+	
+	
+	
+	
+MongoDB数据备份与恢复 
+
+1、备份数据使用mongodump命令
+	
+	在备份数据时，其会将数据导出存储为.json及.bson格式的文件
+
+命令格式如下：
+
+Usage:
+  mongodump <options>	
+	
+常用选项：
+
+1)
+
+	-h, --host=<hostname>                      mongodb host to connect to (setname/host1,host2 for replica sets)
+    --port=<port>                              server port (can also use --host hostname:port)
+
+2) 
+
+	-u, --username=<username>                   username for authentication
+	-p, --password=<password>                   password for authentication	
+	
+	
+3)
+
+	-d, --db=<database-name>                    database to use
+	-c, --collection=<collection-name>          collection to use	
+	
+	
+4）
+
+-o, --out=<directory-path>                                output directory, or '-' for stdout (defaults to 'dump')
+    --gzip                                                compress archive our collection output with Gzip	
+	
+	
+	--archive=<file-path>                                 dump as an archive to the specified path. If flag is
+                                                          specified without a value, archive is written to stdout
+	
+	
+示例01：备份所有数据到/backup目录  
+
+[root@node1 ~]# mongodump -o /backup/
+2017-12-07T07:06:39.265-0500	writing admin.system.version to 
+2017-12-07T07:06:39.267-0500	done dumping admin.system.version (1 document)
+2017-12-07T07:06:39.268-0500	writing game.inventory to 
+2017-12-07T07:06:39.268-0500	writing game.test to 
+.....
+
+或者
+
+[root@node1 ~]# mongodump --host=127.0.0.1 --port=27017 -o /backup/
+
+
+导出的数据如下
+
+[root@node1 ~]# ls /backup/
+admin  game
+
+[root@node1 ~]# ls /backup/game/
+article.bson           inventory.bson           tb01.bson           test.bson
+article.metadata.json  inventory.metadata.json  tb01.metadata.json  test.metadata.json
+
+
+	
+示例02：备份所有数据到/backup目录，并以gzip压缩
+
+[root@node1 ~]# mongodump --host=127.0.0.1 --port=27017 -o /backup --gzip	
+	
+[root@node1 ~]# ls /backup/
+admin  game
+
+[root@node1 ~]# ls /backup/game/
+article.bson.gz           inventory.bson.gz           tb01.bson.gz           test.bson.gz
+article.metadata.json.gz  inventory.metadata.json.gz  tb01.metadata.json.gz  test.metadata.json.gz
+[root@node1 ~]# 
+	
+	
+
+
+示例03：将数据备份到/backup下的archive文件
+
+[root@node1 ~]# mongodump --host=127.0.0.1 --port=27017 --archive=/backup/mongo_data
+
+[root@node1 ~]# ls /backup/
+mongo_data
+
+[root@node1 ~]# file /backup/mongo_data 
+/backup/mongo_data: data
+[root@node1 ~]# 
+
+
+
+示例04：备份game库到/backup目录  
+
+[root@node1 ~]# mongodump --host=127.0.0.1 --port=27017 -d game -o /backup/
+
+[root@node1 ~]# ls /backup/
+game
+
+[root@node1 ~]# ls /backup/game/
+article.bson           inventory.bson           tb01.bson           test.bson
+article.metadata.json  inventory.metadata.json  tb01.metadata.json  test.metadata.json
+[root@node1 ~]# 
+
+
+示例05：备份game库中的test集合
+
+[root@node1 ~]# mongodump --host=127.0.0.1 --port=27017 -d game -c test -o /bak01/
+
+[root@node1 ~]# ls /bak01/
+game
+[root@node1 ~]# ls /bak01/game/
+test.bson  test.metadata.json
+[root@node1 ~]# 
+
+
+
+2、恢复数据使用mongorestore命令 
+
+命令格式如下：
+
+Usage:
+  mongorestore <options> <directory or file to restore>
+	
+选项与mongodump命令大体类似，具体参考mongorestore --help查看参数介绍
+
+
+示例01：恢复所有数据
+
+[root@node1 ~]# mongorestore --host=127.0.0.1 --port=27017 --dir=/bak03
+2017-12-07T07:23:28.540-0500	preparing collections to restore from
+2017-12-07T07:23:28.541-0500	reading metadata for game.inventory from /bak03/game/inventory.metadata.json
+2017-12-07T07:23:28.549-0500	reading metadata for admin.game from /bak03/admin/game.metadata.json
+2017-12-07T07:23:28.630-0500	restoring admin.game from /bak03/admin/game.bson
+2017-12-07T07:23:28.649-0500	no indexes to restore
+2017-12-07T07:23:28.649-0500	finished restoring admin.game (1 document)
+2017-12-07T07:23:28.650-0500	restoring game.inventory from /bak03/game/inventory.bson
+......
+
+
+示例02：恢复game库
+
+[root@node1 ~]# mongorestore --host=127.0.0.1 --port=27017 --dir=/backup 
+
+
+
+示例03：恢复game库中test集合的数据
+
+[root@node1 ~]# mongorestore --host=127.0.0.1 --port=27017 --dir=/bak04/game/test.bson --db=game --collection=test
+
+
+
+
+
+
+
+
+
+
+MongoDB安全性设置
+
+安全设置建议
+	1) 启用访问控制和强制验证。要求所有客户端和服务器连接前提供有效的凭据
+	2) 配置基于角色的访问控制。
+	3) 加密通信。配置MongoDB为所有传入和传出连接使用SSL/TLS加密
+	4) 限制网络曝光。确保mongoDB在安全的网络环境运行，并限制连接MongoDB的连接接口
+	5) 使用专用的用户运行MongoDB
+
+
+	
+MongoDB认证
+
+	认证是验证客户端身份的过程。当启用访问控制时，MongoDB要求所有客户端进行身份认证，以确定其访问
+	
+	MongoDB认证机制：
+		1) SCRAM-SHA-1
+		2) MongoDB质询和响应(MongoDB-CR)
+		3) x.509证书
+		另外，MongoDB企业版还支持使用LDAP及Kerberos认证
+		
+		
+		
+MongoDB用户
+
+	要在MongoDB中验证客户端，必须先在MongoDB中添加用户
+	
+	要添加用户，可以使用db.createUser()方法，添加用户时可以为用户分配角色以确定用户权限
+	
+		注意：在数据库中创建的第一个用户应该是具有管理其他用户权限的管理员
+		
+	添加用户时，可以在指定的数据库中创建用户。该数据库称为用户的认证的数据库。针对同一个用户可以为不同的数据库设置不同的操作权限
+
+认证用户
+	
+	1) 在连接mongod服务时，可以使用选项-u, -p, --authenticationDatabase指定用户信息
+	2) 先连接到mongod服务，然后针对身份验证数据库使用db.auth()方法 
+
+	
+	
+MongoDB创建用户
+
+	MongoDB采用基于角色的访问控制来确定用户的访问权限。授予用户一个或者多个角色，来确定用户对资源的访问
+	
+
+示例：创建用户
+
+1) 创建管理员用户
+
+> use admin
+
+> db.createUser(
+...  {
+...    user: "admin",
+...    pwd: "redhat",
+...    roles: [{role:"root",db:"admin"}]
+...  }
+... )
+
+> 	
+
+测试使用该用户连接mongod
+
+[root@node1 ~]# mongo --host 192.168.0.105 -u admin -p --authenticationDatabase admin
+	
+或者 
+
+[root@node1 ~]# mongoconn 
+
+> use admin
+switched to db admin
+> db.auth("admin","redhat")
+1	
+	
+	
+	
+2) 添加指定用户，针对game数据库创建具有读写权限
+
+> use game
+
+> db.createUser(
+...  {
+...    user: "user01",
+...    pwd: "redhat",
+...    roles: ["readWrite"]
+...  }
+... )	
+	
+	
+3) 查看所有用户
+
+> db.getUsers()
+[ ]
+> 
+> use admin
+switched to db admin
+> db.getUsers()
+[
+	{
+		"_id" : "admin.admin",
+		"user" : "admin",
+		"db" : "admin",
+		"roles" : [
+			{
+				"role" : "root",
+				"db" : "admin"
+			}
+		]
+	}
+]
+> 	
+	
+	
+4) 删除用户
+
+> use game
+
+> db.dropUser("user01")
+true
+> 
+
+
+5) 在game数据库中创建用户user02， 并向用户提供readWrite和dbAdmin角色
+
+> use game
+
+> db.createUser(
+...  {
+...    user: "user02",
+...    pwd: "redhat",
+...    roles: ["readWrite", "dbAdmin"]
+...  }
+... )
+
+
+6) 在game库创建没有角色的用户user03
+
+> use game
+switched to db game
+> 
+> db.createUser(
+...  {
+...    user: "user03",
+...    pwd: "redhat",
+...    roles: []
+...  }
+... )
+Successfully added user: { "user" : "user03", "roles" : [ ] }
+> 
+
+
+
+7) 在admin数据库中创建针对game数据库的用户
+
+> use admin
+
+> db.createUser(
+...   {
+...     user: "admin01",
+...     pwd: "redhat",
+...     roles: 
+...        [
+...           { role: "readWrite", db: "game" }
+...        ]
+...    }
+... )
+
+
+
+MongoDB内置角色参考如下：
+
+1、数据库用户角色(Database User Roles)
+
+	read
+	readWrite 
+	
+2、数据库管理角色(Database Administrator Roles)
+
+	dbAdmin：提供索引、信息统计等管理权限。此角色不提供用户管理、角色管理的权限
+	userAdmin：提供在当前数据库上创建和修改角色和用户的权限
+	dbOwner：提供readWrite, dbAdmin, userAdmin角色的权限
+	
+3、集群管理角色(Cluster Administrator Roles)
+
+	clusterAdmin：提供集群管理访问权限
+	clusterManage：提供集群管理和监控权限
+	clusterMonitor：为MongoDB Cloud Manager和OPS Manager监控代理工具提供只读访问权限
+	hostManager：提供监控和管理服务器的能力
+	
+4、备份与恢复角色(Backup and Restore Roels)
+
+	backup
+	restore
+
+5、All-Database Roles(All-Database Roles)
+
+	readAnyDatabase: 拥有除了 local 和 config 以外的所有数据的 read 角色权限，此外还提供 listDatabases 操作权限
+	readWriteAnyDatabase: 拥有除了 local 和 config 以外的所有数据的 read， readWriteAnyDatabase 角色权限，此外还提供 listDatabases 操作权限
+	userAdminAnyDatabase: 拥有除了 local 和 config 以外的所有数据的 userAdmin 角色权限 
+	dbAdminAnyDatabase: 拥有除了 local 和 config 以外的所有数据的 dbAdmin角色权限， 此外还提供 listDatabases 操作权限
+
+6、超级角色
+
+	root 
+	
+	
+	
+MongoDB用户管理
+
+1、查看用户角色
+
+> db.getUser("testuser")
+{
+	"_id" : "admin.testuser",
+	"user" : "testuser",
+	"db" : "admin",
+	"roles" : [
+		{
+			"role" : "readWrite",
+			"db" : "game"
+		}
+	]
+}
+> 
+
+
+2、查看角色权限
+
+> use admin
+switched to db admin
+> db.getRole( "read", {showPrivileges: true})
+{
+	"role" : "read",
+	"db" : "admin",
+	"isBuiltin" : true,
+	"roles" : [ ],
+	"inheritedRoles" : [ ],
+	"privileges" : [
+		{
+			"resource" : {
+				"db" : "admin",
+				"collection" : ""
+				........
+	
+
+3、撤销用户在game数据库上的readWrite权限
+
+> db.revokeRolesFromUser(
+...  "testuser",
+...  [ { role: "readWrite", db: "game"} ]
+... )
+
+
+4、赋予用户权限
+
+> db.grantRolesToUser(
+...   "testuser", 
+...   [ { role: "read", db: "game"} ]
+... )
+
+
+5、修改用户密码
+
+> db.changeUserPassword("testuser", "123")
+
